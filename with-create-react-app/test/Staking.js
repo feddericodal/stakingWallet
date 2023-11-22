@@ -28,24 +28,25 @@ describe('deploy', function() {
     }
 
     describe('walletCreate', function(){
-        it('This should create a wallet for the user and return the wallet Id. The user can create as many wallets as they want', async function(){
+        it('it should create a wallet for the user and return the wallet Id. The user can create as many wallets as they want', async function(){
             const { staking , firstAccount, otherAccount} = await loadFixture(deployFixture);
-            // Chiama la funzione walletCreate
-            const id = await staking.connect(firstAccount).walletCreate();
-            const id1 = await staking.connect(otherAccount).walletCreate();
-            const id2 = await staking.connect(firstAccount).walletCreate();
+            // Chiama la funzione walletCreate e controllo emissione evento
+            await expect(staking.connect(firstAccount).walletCreate()).to.emit(staking, '_WalletCreate').withArgs(0, "0xa16E02E87b7454126E5E10d957A927A7F5B5d2be");
+            await expect(staking.connect(otherAccount).walletCreate()).to.emit(staking, '_WalletCreate').withArgs(1, "0xB7A5bd0345EF1Cc5E66bf61BdeC17D2461fBd968");
+            await expect(staking.connect(otherAccount).walletCreate()).to.emit(staking, '_WalletCreate').withArgs(2, "0xeEBe00Ac0756308ac4AaBfD76c05c4F3088B8883");
+           
             
             const stakeWallet = await staking.getWallets();
-
-            expect( stakeWallet[0].wallet).to.not.be.empty;
-            expect( stakeWallet[1].wallet).to.not.be.empty;
-            expect( stakeWallet[2].wallet).to.not.be.empty;
+        
+            expect( stakeWallet[0].wallet).to.equal("0xa16E02E87b7454126E5E10d957A927A7F5B5d2be"); 
+            expect( stakeWallet[1].wallet).to.equal("0xB7A5bd0345EF1Cc5E66bf61BdeC17D2461fBd968")
+            expect( stakeWallet[2].wallet).to.equal("0xeEBe00Ac0756308ac4AaBfD76c05c4F3088B8883")
 
         })
     })
 
     describe('walletDeposit', function(){
-        it('should deposit Ether to the contract', async function(){
+        it('it should deposit Ether to the contract', async function(){
             const { staking , firstAccount , otherAccount} = await loadFixture(deployFixture);
             //// creo il wallet
             await staking.connect(firstAccount).walletCreate();
@@ -54,8 +55,8 @@ describe('deploy', function() {
             //controllo che il balance alla creazione sia 0
             const balance = await staking.connect(firstAccount).walletBalance(0);
             expect(balance.toString()).to.equal(ethers.parseEther('0'));
-            /// deposito eth nel wallet
-            await staking.connect(firstAccount).walletDeposit(0, {value: ethers.parseEther('1')})         
+            /// deposito eth nel wallet controllo emissione evento  
+            await expect(staking.connect(firstAccount).walletDeposit(0, {value: ethers.parseEther('1')}) ).to.emit(staking, '_walletDeposit').withArgs(0, ethers.parseEther('1'));      
             // controllo che il bilancio sia giusto
             const balanceAfter = await staking.connect(firstAccount).walletBalance(0);
             expect(balanceAfter.toString()).to.equal(ethers.parseEther('1'));
@@ -64,15 +65,15 @@ describe('deploy', function() {
 
     })
     describe('walletWithdraw', function(){
-        it('should withdraw Ether to the contract', async function(){
+        it('it should withdraw Ether to the contract', async function(){
         const { staking , firstAccount, otherAccount} = await loadFixture(deployFixture);
         //creo il wallet
         await staking.connect(firstAccount).walletCreate();
         /// deposito eth nel wallet
         const balancePartenza =  await ethers.provider.getBalance(otherAccount.address);
         await staking.connect(firstAccount).walletDeposit(0, {value: ethers.parseEther('1')})
-        //faccio il withdraw
-        await staking.connect(firstAccount).walletWithdraw(0,otherAccount.address,ethers.parseEther('1'))
+        //faccio il withdraw controllo emissione evento
+        await expect(staking.connect(firstAccount).walletWithdraw(0,otherAccount.address,ethers.parseEther('1'))).to.emit(staking, '_walletWithdraw').withArgs(0, ethers.parseEther('1'),otherAccount.address); 
         const balance =  await ethers.provider.getBalance(otherAccount.address);
         const balanceAfter = await staking.connect(firstAccount).walletBalance(0);
         ///controllo che gli ether siano andati all altro indirizzo
@@ -83,8 +84,8 @@ describe('deploy', function() {
     })
 
     describe('stakingEth', function(){
-        it('stake eth into contract, send rewards', async function(){
-            const { staking , firstAccount, otherAccount} = await loadFixture(deployFixture);
+        it('it should stake eth into contract', async function(){
+            const { staking , firstAccount} = await loadFixture(deployFixture);
             //creo il wallet
             await staking.connect(firstAccount).walletCreate();
             //provo a mettere in stake anche se non ho eth
@@ -92,18 +93,20 @@ describe('deploy', function() {
             //deposito gli eth nel wallet
             const tx = await staking.connect(firstAccount).walletDeposit(0, {value: ethers.parseEther('2')})
             //deposito 1eth in stake
-            await staking.connect(firstAccount).stakeEth(0,ethers.parseEther('1'));
+            await expect(staking.connect(firstAccount).stakeEth(0,ethers.parseEther('1'))).to.emit(staking, '_stakeEth').withArgs(0, ethers.parseEther('1')); 
             //controllo che sia stato depositato nel contratto
             const balance =  await ethers.provider.getBalance(staking);
             expect(balance).to.equal(ethers.parseEther('1'));
             const stakeWallet = await staking.getWallets();
-            expect(stakeWallet[0].StartTimeStake).to.not.be.null;
+            // mi aspetto che starttimeStake e andtime siano uguali
+            await expect(stakeWallet[0].endTimeStake).to.equal(stakeWallet[0].StartTimeStake)
             /// controllo che sia stato aggiunto al contatore del contratto
             expect(stakeWallet[0].totalAmount).to.equal(ethers.parseEther('1'));
             
-            //deposito 1eth in stake
-            await staking.connect(firstAccount).stakeEth(0,ethers.parseEther('1'));
+            //deposito 1eth in stake   
+            await expect(staking.connect(firstAccount).stakeEth(0,ethers.parseEther('1'))).to.emit(staking, '_stakeEth').withArgs(0, ethers.parseEther('1'));
             
+
             expect(stakeWallet[0].endTimeStake).to.not.be.null;
             expect(stakeWallet[0].StartTimeStake).to.not.be.null;
 
@@ -115,8 +118,8 @@ describe('deploy', function() {
     })
     
     describe('currentStake', function(){
-        it('This will return the current amount of ETH that a particular wallet has staked in the staking pool', async function(){
-            const { staking , firstAccount, otherAccount} = await loadFixture(deployFixture);
+        it('it should return the current amount of ETH that a particular wallet has staked in the staking pool', async function(){
+            const { staking , firstAccount} = await loadFixture(deployFixture);
             //creo il wallet
             await staking.connect(firstAccount).walletCreate();
             //deposito gli eth nel wallet
@@ -134,7 +137,7 @@ describe('deploy', function() {
 
     })
     describe('currentReward', function(){
-        it('This will return the total unclaimed WEB3 ERC20 tokens based on the user’s stake in the staking pool', async function(){
+        it('id should return the total unclaimed WEB3 ERC20 tokens based on the user’s stake in the staking pool', async function(){
             const { staking , firstAccount, otherAccount} = await loadFixture(deployFixture);
             //creo il wallet
             await staking.connect(firstAccount).walletCreate();
@@ -144,8 +147,6 @@ describe('deploy', function() {
             await staking.connect(firstAccount).stakeEth(0,ethers.parseEther('1'));
             //aspetto tot blocchi
             await helperMineNBlocks(1000);
-            //// ne deposito un altro
-            await staking.connect(firstAccount).stakeEth(0,ethers.parseEther('1'));
             // calcolo le rewards
             const currentRewards =  await staking.connect(firstAccount).currentReward(0);
           
@@ -154,7 +155,7 @@ describe('deploy', function() {
 
     })
     describe('totalAddressesStaked', function(){
-        it('This will return the total amount of wallets that are currently in the staking pool', async function(){
+        it('it should return the total amount of wallets that are currently in the staking pool', async function(){
             const { staking , firstAccount, otherAccount} = await loadFixture(deployFixture);
             //creo il wallet
             await staking.connect(firstAccount).walletCreate();
@@ -182,7 +183,7 @@ describe('deploy', function() {
 
 
     describe('isWalletStaked', function(){
-        it('This will return true or false depending on whether a particular wallet is staked in the staking pool', async function(){
+        it('it should return true or false depending on whether a particular wallet is staked in the staking pool', async function(){
             const { staking , firstAccount, otherAccount} = await loadFixture(deployFixture);
             //creo il wallet
             await staking.connect(firstAccount).walletCreate();
@@ -198,8 +199,8 @@ describe('deploy', function() {
 
     })
     describe('unstakeEth', function(){
-        it('This will return This should let users unstake all their ETH they have in the staking pool', async function(){
-            const { staking , firstAccount, otherAccount} = await loadFixture(deployFixture);
+        it('it should let users unstake all their ETH they have in the staking pool', async function(){
+            const { staking , firstAccount} = await loadFixture(deployFixture);
             //creo il wallet
             await staking.connect(firstAccount).walletCreate();
             //provo unstake per revert
@@ -210,12 +211,12 @@ describe('deploy', function() {
             await staking.connect(firstAccount).stakeEth(0,ethers.parseEther('1'));
             ///faccio unstake
             await staking.connect(firstAccount).unstakeEth(0);
-            ///
+            /// controllo tutto sia ritornato come alla partenza
             const stakeWallet = await staking.getWallets();
             expect(stakeWallet[0].totalAmount).to.equal(0);
             expect(stakeWallet[0].StartTimeStake).to.equal(0);
             expect(stakeWallet[0].StartTimeStake).to.equal(0);
-            /// balance del wallet ritorni
+            /// balance del wallet ritorni con gli eth
             const balance =  await ethers.provider.getBalance(stakeWallet[0].wallet);
             expect(balance).to.equal(ethers.parseEther('1'));
 
@@ -225,5 +226,5 @@ describe('deploy', function() {
 
     })
 
-   
+
 })
