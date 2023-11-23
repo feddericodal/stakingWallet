@@ -210,7 +210,7 @@ describe('deploy', function() {
             //deposito 1eth in stake
             await staking.connect(firstAccount).stakeEth(0,ethers.parseEther('1'));
             ///faccio unstake
-            await staking.connect(firstAccount).unstakeEth(0);
+            await expect(staking.connect(firstAccount).unstakeEth(0)).to.emit(staking, '_unstakeEth').withArgs(0, ethers.parseEther('1'),0);
             /// controllo tutto sia ritornato come alla partenza
             const stakeWallet = await staking.getWallets();
             expect(stakeWallet[0].totalAmount).to.equal(0);
